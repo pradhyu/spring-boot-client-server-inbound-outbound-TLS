@@ -39,10 +39,12 @@ echo -e "${YELLOW}Note:${NC} All .crt/key files are in ${MAGENTA}PEM (Privacy-En
 echo -e "      PEM is a text based format (Base64) that acts as a Trust Store."
 echo -e "      One PEM file can contain multiple certificates (a bundle)."
 echo -e ""
-echo -e "${YELLOW}Tier 1:${NC} External User (curl) -> trusts -> ${CYAN}user.crt${NC} (Public Identity)"
-echo -e "${YELLOW}Tier 2:${NC} User App (8445)      -> trusts -> ${CYAN}client-trust.crt${NC} (Public Copy of client.crt)"
-echo -e "${YELLOW}Tier 3:${NC} Client Proxy (8444)  -> trusts -> ${CYAN}server-trust.crt${NC} (Public Copy of server.crt)"
-echo -e "${YELLOW}Final :${NC} Server Identity      -> uses   -> ${CYAN}server.crt (Public)${NC} / ${RED}server.key (Private)${NC}"
+echo -e "${YELLOW}Tier 1:${NC} External User (curl) -> trusts -> ${CYAN}user.crt${NC} (Public Copy of User App's ID)"
+echo -e "${YELLOW}Tier 2:${NC} User App (8445)      -> uses   -> ${MAGENTA}user.crt/key${NC} (Identity)"
+echo -e "                            trusts -> ${CYAN}client-trust.crt${NC} (Public Copy of ${MAGENTA}client.crt${NC})"
+echo -e "${YELLOW}Tier 3:${NC} Client Proxy (8444)  -> uses   -> ${MAGENTA}client.crt/key${NC} (Identity)"
+echo -e "                            trusts -> ${CYAN}server-trust.crt${NC} (Public Copy of ${MAGENTA}server.crt${NC})"
+echo -e "${YELLOW}Final :${NC} Server Identity      -> uses   -> ${MAGENTA}server.crt/key${NC} (Identity)"
 echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}\n"
 
 # 2. Check if already running
@@ -66,17 +68,25 @@ wait_for_https "https://localhost:8444/call-server" "Client (8444)"
 wait_for_https "https://localhost:8445/test-full-chain" "User App (8445)"
 
 # 4. Report Certificate Details from Logs
+sleep 2 # Allow logs to flush
 echo -e "\n${MAGENTA}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo -e "${MAGENTA}--- 3-TIER CERTIFICATE VERIFICATION (Runtime) ---${NC}"
 
-echo -e "${YELLOW}[User App (8445) -> Client Proxy]${NC}"
-grep -A 3 "USER APP LOADING TRUST CERT" user.log | sed 's/^/    /' || echo "    Details not found in user.log"
+echo -e "${YELLOW}[User App (8445)]${NC}"
+echo -e "  ${BLUE}Identity (Inbound):${NC}"
+grep -A 2 "IDENTITY (Inbound)" user.log | sed 's/^/    /' || echo "    Details not found"
+echo -e "  ${BLUE}Trust Store (Outbound):${NC}"
+grep -A 3 "LOADING TRUST CERT" user.log | sed 's/^/    /' || echo "    Details not found"
 
-echo -e "\n${YELLOW}[Client Proxy (8444) -> Server]${NC}"
-grep -A 3 "CLIENT PROXY LOADING TRUST CERT" client.log | sed 's/^/    /' || echo "    Details not found in client.log"
+echo -e "\n${YELLOW}[Client Proxy (8444)]${NC}"
+echo -e "  ${BLUE}Identity (Inbound):${NC}"
+grep -A 2 "IDENTITY (Inbound)" client.log | sed 's/^/    /' || echo "    Details not found"
+echo -e "  ${BLUE}Trust Store (Outbound):${NC}"
+grep -A 3 "LOADING TRUST CERT" client.log | sed 's/^/    /' || echo "    Details not found"
 
-echo -e "\n${YELLOW}[Final Server (8443) Identity]${NC}"
-grep -A 4 "SERVER IDENTITY CERT" server.log | sed 's/^/    /' || echo "    Details not found in server.log"
+echo -e "\n${YELLOW}[Final Server (8443)]${NC}"
+echo -e "  ${BLUE}Identity (Inbound):${NC}"
+grep -A 4 "IDENTITY (Inbound)" server.log | sed 's/^/    /' || echo "    Details not found"
 echo -e "${MAGENTA}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}\n"
 
 # 5. Positive Test: Full 3-Tier Certificate Chain Call
