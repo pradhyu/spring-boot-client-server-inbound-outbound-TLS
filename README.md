@@ -103,3 +103,52 @@ public Mono<String> callServers() {
                .map(tuple -> combineResponses(tuple.getT1(), tuple.getT2()));
 }
 ```
+
+---
+
+## � TLS vs. Mutual TLS (mTLS)
+
+This project has been upgraded from one-way TLS to **Mutual TLS (mTLS)**. Below is a comparison of how the handshake differs.
+
+### 1. One-Way TLS (Standard)
+In standard TLS, only the **server** proves its identity to the client. The client verifies the server's certificate against its trust store.
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant Server
+    
+    Client->>Server: 1. ClientHello
+    Server->>Client: 2. ServerHello + Server Certificate
+    Note right of Client: 3. Verify Server Certificate
+    Client->>Server: 4. Key Exchange + Finished
+    Server->>Client: 5. Finished
+    Note over Client, Server: 🔒 Secure Channel (Server Authenticated)
+```
+
+### 2. Mutual TLS (mTLS)
+In mTLS, **both** the client and server prove their identities. The server sends a `CertificateRequest`, and the client must respond with its own certificate.
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant Server
+    
+    Client->>Server: 1. ClientHello
+    Server->>Client: 2. ServerHello + Server Certificate + CertificateRequest
+    Note right of Client: 3. Verify Server Certificate
+    Client->>Server: 4. Client Certificate + Key Exchange + CertificateVerify
+    Note left of Server: 5. Verify Client Certificate
+    Server->>Client: 6. Finished
+    Note over Client, Server: 🔒 Secure Channel (Both Authenticated)
+```
+
+---
+
+## 🛡️ Security Hardening
+
+- [x] **Mutual TLS (mTLS)**: Enforced between Client Proxy and Backend Servers.
+- [ ] **Private Certificate Authority (CA)**: Replace self-signed certificates.
+- [ ] **Secrets Management**: Move private keys out of resources.
+- [ ] **Certificate Rotation**: Automated renewal.
+```
