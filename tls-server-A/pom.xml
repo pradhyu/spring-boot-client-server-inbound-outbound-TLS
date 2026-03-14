@@ -7,8 +7,8 @@
 		<artifactId>tls-multi-module</artifactId>
 		<version>0.0.1-SNAPSHOT</version>
 	</parent>
-	<artifactId>tls-server</artifactId>
-	<name>tls-server</name>
+	<artifactId>tls-server-A</artifactId>
+	<name>tls-server-A</name>
 
 	<dependencies>
 		<dependency>

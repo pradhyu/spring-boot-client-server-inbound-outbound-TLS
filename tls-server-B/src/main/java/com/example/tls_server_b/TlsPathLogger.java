@@ -1,4 +1,4 @@
-package com.example.tls_server;
+package com.example.tls_server_b;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
@@ -21,7 +21,7 @@ public class TlsPathLogger implements CommandLineRunner {
         CertificateFactory cf = CertificateFactory.getInstance("X.509");
         X509Certificate cert = (X509Certificate) cf.generateCertificate(certificate.getInputStream());
 
-        System.out.println(">>> [DEBUG] SERVER IDENTITY (Inbound):");
+        System.out.println(">>> [DEBUG] SERVER-B IDENTITY (Inbound):");
         System.out.println("    CERT (Public):  " + certificate.getURI().toString());
         System.out.println("    KEY  (Private): " + privateKey.getURI().toString());
         System.out.println("    SUBJECT:        " + cert.getSubjectX500Principal());

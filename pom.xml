@@ -16,13 +16,14 @@
 	<description>Multi-module TLS Demo</description>
 
 	<modules>
-		<module>tls-server</module>
+		<module>tls-server-A</module>
+		<module>tls-server-B</module>
 		<module>tls-client</module>
 		<module>tls-user</module>
 	</modules>
 
 	<properties>
-		<java.version>21</java.version>
+		<java.version>17</java.version>
 	</properties>
 
 </project>
