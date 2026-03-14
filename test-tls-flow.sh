@@ -39,10 +39,10 @@ echo -e "${YELLOW}Note:${NC} All .crt/key files are in ${MAGENTA}PEM (Privacy-En
 echo -e "      PEM is a text based format (Base64) that acts as a Trust Store."
 echo -e "      One PEM file can contain multiple certificates (a bundle)."
 echo -e ""
-echo -e "${YELLOW}Tier 1:${NC} External User (curl) -> trusts -> ${CYAN}user.crt${NC} (User App's Identity)"
-echo -e "${YELLOW}Tier 2:${NC} User App (8445)      -> trusts -> ${CYAN}client-trust.crt${NC} (Copy of client.crt)"
-echo -e "${YELLOW}Tier 3:${NC} Client Proxy (8444)  -> trusts -> ${CYAN}server-trust.crt${NC} (Copy of server.crt)"
-echo -e "${YELLOW}Final :${NC} Server Identity      -> uses   -> ${CYAN}server.crt / server.key${NC}"
+echo -e "${YELLOW}Tier 1:${NC} External User (curl) -> trusts -> ${CYAN}user.crt${NC} (Public Identity)"
+echo -e "${YELLOW}Tier 2:${NC} User App (8445)      -> trusts -> ${CYAN}client-trust.crt${NC} (Public Copy of client.crt)"
+echo -e "${YELLOW}Tier 3:${NC} Client Proxy (8444)  -> trusts -> ${CYAN}server-trust.crt${NC} (Public Copy of server.crt)"
+echo -e "${YELLOW}Final :${NC} Server Identity      -> uses   -> ${CYAN}server.crt (Public)${NC} / ${RED}server.key (Private)${NC}"
 echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}\n"
 
 # 2. Check if already running
