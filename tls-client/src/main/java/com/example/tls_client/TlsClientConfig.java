@@ -18,6 +18,8 @@ public class TlsClientConfig {
 
     @Bean
     public WebClient webClient() throws Exception {
+        System.err.println(">>> [DEBUG] CLIENT TRUST CERT PATH: " + trustCertificate.getURI().toString());
+        
         SslContext sslContext = SslContextBuilder.forClient()
                 .trustManager(trustCertificate.getInputStream())
                 .build();
