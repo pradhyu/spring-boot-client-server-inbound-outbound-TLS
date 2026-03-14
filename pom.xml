@@ -18,6 +18,7 @@
 	<modules>
 		<module>tls-server</module>
 		<module>tls-client</module>
+		<module>tls-user</module>
 	</modules>
 
 	<properties>

@@ -1,4 +1,4 @@
-package com.example.tls_client;
+package com.example.tls_user;
 
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
@@ -14,9 +14,9 @@ import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 
 @Configuration
-public class TlsClientConfig {
+public class TlsUserConfig {
 
-    @Value("classpath:server-trust.crt")
+    @Value("classpath:client-trust.crt")
     private Resource trustCertificate;
 
     @Bean
@@ -24,11 +24,11 @@ public class TlsClientConfig {
         CertificateFactory cf = CertificateFactory.getInstance("X.509");
         X509Certificate cert = (X509Certificate) cf.generateCertificate(trustCertificate.getInputStream());
         
-        System.err.println(">>> [DEBUG] CLIENT PROXY LOADING TRUST CERT:");
+        System.err.println(">>> [DEBUG] USER APP LOADING TRUST CERT:");
         System.err.println("    PATH:   " + trustCertificate.getURI().toString());
         System.err.println("    SUBJECT: " + cert.getSubjectX500Principal());
         System.err.println("    ISSUER:  " + cert.getIssuerX500Principal());
-
+        
         SslContext sslContext = SslContextBuilder.forClient()
                 .trustManager(trustCertificate.getInputStream())
                 .build();

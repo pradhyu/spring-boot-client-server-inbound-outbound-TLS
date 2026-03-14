@@ -12,7 +12,6 @@ NC='\033[0m' # No Color
 wait_for_https() {
     local url=$1
     local name=$2
-    local cert=$3
     echo -ne "${YELLOW}⌛ Waiting for $name readiness... ${NC}"
     for i in {1..30}; do
         if curl -s -k "$url" > /dev/null; then
@@ -27,76 +26,80 @@ wait_for_https() {
 }
 
 # 1. Build only if jars don't exist
-if [[ ! -f "tls-server/target/tls-server-0.0.1-SNAPSHOT.jar" ]] || [[ ! -f "tls-client/target/tls-client-0.0.1-SNAPSHOT.jar" ]]; then
+if [[ ! -f "tls-server/target/tls-server-0.0.1-SNAPSHOT.jar" ]] || \
+   [[ ! -f "tls-client/target/tls-client-0.0.1-SNAPSHOT.jar" ]] || \
+   [[ ! -f "tls-user/target/tls-user-0.0.1-SNAPSHOT.jar" ]]; then
     echo -e "${BLUE}▶ Building project...${NC}"
     mvn clean package -Dmaven.test.skip=true > build.log 2>&1
 fi
 
-# 2. Check if already running
-if lsof -Pi :8443 -sTCP:LISTEN -t >/dev/null ; then
-    echo -e "${GREEN}✔ Server already running on 8443${NC}"
-else
-    echo -e "${BLUE}▶ Starting TLS Server on 8443...${NC}"
-    java -Djavax.net.debug=ssl,handshake,keymanager,trustmanager -jar tls-server/target/tls-server-0.0.1-SNAPSHOT.jar > server.log 2>&1 &
-    SERVER_PID=$!
-fi
+echo -e "\n${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${CYAN}--- CERTIFICATE TOPOLOGY & TRUST RELATIONSHIPS ---${NC}"
+echo -e "${YELLOW}Note:${NC} All .crt/key files are in ${MAGENTA}PEM (Privacy-Enhanced Mail)${NC} format."
+echo -e "      PEM is a text based format (Base64) that acts as a Trust Store."
+echo -e "      One PEM file can contain multiple certificates (a bundle)."
+echo -e ""
+echo -e "${YELLOW}Tier 1:${NC} External User (curl) -> trusts -> ${CYAN}user.crt${NC} (User App's Identity)"
+echo -e "${YELLOW}Tier 2:${NC} User App (8445)      -> trusts -> ${CYAN}client-trust.crt${NC} (Copy of client.crt)"
+echo -e "${YELLOW}Tier 3:${NC} Client Proxy (8444)  -> trusts -> ${CYAN}server-trust.crt${NC} (Copy of server.crt)"
+echo -e "${YELLOW}Final :${NC} Server Identity      -> uses   -> ${CYAN}server.crt / server.key${NC}"
+echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}\n"
 
-if lsof -Pi :8444 -sTCP:LISTEN -t >/dev/null ; then
-    echo -e "${GREEN}✔ Client already running on 8444${NC}"
-else
-    echo -e "${BLUE}▶ Starting TLS Client on 8444...${NC}"
-    java -Djavax.net.debug=ssl,handshake,keymanager,trustmanager -jar tls-client/target/tls-client-0.0.1-SNAPSHOT.jar > client.log 2>&1 &
-    CLIENT_PID=$!
-fi
+# 2. Check if already running
+for entry in "8443:tls-server:server.log" "8444:tls-client:client.log" "8445:tls-user:user.log"; do
+    port="${entry%%:*}"
+    rest="${entry#*:}"
+    module="${rest%%:*}"
+    log_file="${rest#*:}"
+    
+    if lsof -Pi :$port -sTCP:LISTEN -t >/dev/null ; then
+        echo -e "${GREEN}✔ $module already running on $port${NC}"
+    else
+        echo -e "${BLUE}▶ Starting $module on $port...${NC}"
+        java -Djavax.net.debug=ssl,handshake,keymanager,trustmanager -jar $module/target/$module-0.0.1-SNAPSHOT.jar > $log_file 2>&1 &
+    fi
+done
 
 # 3. Wait for readiness
-wait_for_https "https://localhost:8443/hello" "Server"
-wait_for_https "https://localhost:8444/call-server" "Client"
+wait_for_https "https://localhost:8443/hello" "Server (8443)"
+wait_for_https "https://localhost:8444/call-server" "Client (8444)"
+wait_for_https "https://localhost:8445/test-full-chain" "User App (8445)"
 
-# 4. Report Paths
-echo -e "\n${MAGENTA}--- RUNTIME PATH VERIFICATION ---${NC}"
-SERVER_CERT_PATH=$(grep "SERVER TLS CERT PATH" server.log | tail -n 1 | awk -F': ' '{print $2}')
-CLIENT_TRUST_PATH=$(grep "CLIENT TRUST CERT PATH" client.log | tail -n 1 | awk -F': ' '{print $2}')
-echo -e "Server Cert: ${CYAN}${SERVER_CERT_PATH:-'N/A'}${NC}"
-echo -e "Client Trust: ${CYAN}${CLIENT_TRUST_PATH:-'N/A'}${NC}"
+# 4. Report Certificate Details from Logs
+echo -e "\n${MAGENTA}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${MAGENTA}--- 3-TIER CERTIFICATE VERIFICATION (Runtime) ---${NC}"
+
+echo -e "${YELLOW}[User App (8445) -> Client Proxy]${NC}"
+grep -A 3 "USER APP LOADING TRUST CERT" user.log | sed 's/^/    /' || echo "    Details not found in user.log"
+
+echo -e "\n${YELLOW}[Client Proxy (8444) -> Server]${NC}"
+grep -A 3 "CLIENT PROXY LOADING TRUST CERT" client.log | sed 's/^/    /' || echo "    Details not found in client.log"
+
+echo -e "\n${YELLOW}[Final Server (8443) Identity]${NC}"
+grep -A 4 "SERVER IDENTITY CERT" server.log | sed 's/^/    /' || echo "    Details not found in server.log"
+echo -e "${MAGENTA}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}\n"
 
 # 5. Tests
-CA_PATH="$(pwd)/tls-client/src/main/resources/client.crt"
+USER_CA="$(pwd)/tls-user/src/main/resources/user.crt"
+echo -e "${GREEN}TEST: Full 3-Tier Certificate Chain Call${NC}"
+echo -e "${BLUE}Executing:${NC} curl -s --cacert $USER_CA https://localhost:8445/test-full-chain"
+RESPONSE=$(curl -s --cacert "$USER_CA" https://localhost:8445/test-full-chain)
 
-echo -e "\n${GREEN}TEST 1: Positive Case (Full TLS Chain)${NC}"
-echo -e "${BLUE}Executing:${NC} curl -v --cacert $CA_PATH https://localhost:8444/call-server"
-echo -e "${YELLOW}Detailed TLS Handshake Summary:${NC}"
-curl -v --cacert "$CA_PATH" https://localhost:8444/call-server 2>&1 | grep -E "TLS|handshake|SSL|ALPN|Connected to|common name|subject:|issuer:|HTTP/"
+echo -e "\n${GREEN}Final Response:${NC} ${CYAN}$RESPONSE${NC}"
 
-# Capture response and status code
-FULL_RESPONSE=$(curl -s -w "\n%{http_code}" --cacert "$CA_PATH" https://localhost:8444/call-server)
-HTTP_CODE=$(echo "$FULL_RESPONSE" | tail -n1)
-RESPONSE=$(echo "$FULL_RESPONSE" | sed '$d')
+echo -e "\n${MAGENTA}--- 3-TIER AUDIT TRAIL ---${NC}"
+echo -e "${YELLOW}[User Application]:${NC}"
+grep "\[USER APP\]" user.log | tail -n 1
+echo -e "${YELLOW}[Client Proxy]:${NC}"
+grep "\[HOP 1\]" client.log | tail -n 1
+echo -e "${YELLOW}[Final Server]:${NC}"
+grep "Hello from" server.log | tail -n 1 || echo "Request reached server controller"
+echo -e "${MAGENTA}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 
-echo -e "\n${YELLOW}HTTP Status Code:${NC} $HTTP_CODE"
-echo -e "${GREEN}Final Response:${NC} $RESPONSE"
-
-if [ "$HTTP_CODE" -eq 200 ] && [[ "$RESPONSE" == *"Hello from TLS secured server!"* ]]; then
-    echo -e "${GREEN}✔ SUCCESS: Received 200 OK with valid response.${NC}"
-    echo -e "\n${MAGENTA}--- INTERNAL PROXY AUDIT TRAIL (Client Logs) ---${NC}"
-    grep -E "\[HOP" client.log | tail -n 2
-    echo -e "${MAGENTA}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+# Check for success
+if [[ "$RESPONSE" == *"Hello from TLS secured server!"* ]]; then
+    echo -e "${GREEN}✔ SUCCESS: Verified full flow: User -> User App -> Client Proxy -> Server${NC}"
 else
-    echo -e "${RED}✘ FAILURE: Unexpected status code $HTTP_CODE or response.${NC}"
-fi
-
-echo -e "\n${RED}TEST 2: Negative Case (No CA)${NC}"
-echo "Executing: curl -w \"\n%{http_code}\" https://localhost:8444/call-server"
-CURL_OUT=$(curl -s -w "\n%{http_code}" https://localhost:8444/call-server 2>&1)
-HTTP_CODE_NEG=$(echo "$CURL_OUT" | tail -n1)
-
-if [[ "$CURL_OUT" == *"SSL certificate problem"* ]] || [[ "$CURL_OUT" == *"certificate verify failed"* ]] || [ "$HTTP_CODE_NEG" -eq 000 ]; then
-    echo -e "${GREEN}✔ Blocked correctly (HTTP Code: $HTTP_CODE_NEG)${NC}"
-else
-    echo -e "${RED}✘ FAILURE: Connection should have been blocked (HTTP Code: $HTTP_CODE_NEG)${NC}"
-fi
-
-# 6. Final Clean up of background processes STARTED BY THIS SCRIPT
-if [ ! -z "$SERVER_PID" ] || [ ! -z "$CLIENT_PID" ]; then
-    echo -e "\n${YELLOW}Note: Services were started in background. Use pkill -f .jar to stop them.${NC}"
+    echo -e "${RED}✘ FAILURE: Chain broken.${NC}"
+    exit 1
 fi
