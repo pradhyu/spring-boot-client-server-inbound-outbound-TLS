@@ -18,14 +18,18 @@ public class ClientProxyController {
 
     @GetMapping("/call-server")
     public Mono<String> callServer() {
-        log.info(">>> [HOP 1] Received request on Client (8444). Initiating [HOP 2] Outbound TLS call to Server (8443)...");
+        String inboundUrl = "https://localhost:8444/call-server";
+        String outboundUrl = "https://localhost:8443/hello";
+        
+        log.info(">>> [HOP 1] Received request on Client ({}). Initiating [HOP 2] Outbound TLS call to Server ({})...", 
+                 inboundUrl, outboundUrl);
         
         return webClient.get()
-                .uri("https://localhost:8443/hello")
+                .uri(outboundUrl)
                 .retrieve()
                 .bodyToMono(String.class)
-                .doOnNext(res -> log.info("<<< [HOP 2 SUCCESS] Received response from Server: '{}'", res))
+                .doOnNext(res -> log.info("<<< [HOP 2 SUCCESS] Received response from {}: '{}'", outboundUrl, res))
                 .map(response -> "Client received: " + response)
-                .doOnError(err -> log.error("!!! [HOP 2 FAILURE] Outbound TLS call failed: {}", err.getMessage()));
+                .doOnError(err -> log.error("!!! [HOP 2 FAILURE] Outbound TLS call to {} failed: {}", outboundUrl, err.getMessage()));
     }
 }
