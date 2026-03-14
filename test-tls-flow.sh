@@ -79,13 +79,16 @@ echo -e "\n${YELLOW}[Final Server (8443) Identity]${NC}"
 grep -A 4 "SERVER IDENTITY CERT" server.log | sed 's/^/    /' || echo "    Details not found in server.log"
 echo -e "${MAGENTA}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}\n"
 
-# 5. Tests
+# 5. Positive Test: Full 3-Tier Certificate Chain Call
 USER_CA="$(pwd)/tls-user/src/main/resources/user.crt"
-echo -e "${GREEN}TEST: Full 3-Tier Certificate Chain Call${NC}"
-echo -e "${BLUE}Executing:${NC} curl -s --cacert $USER_CA https://localhost:8445/test-full-chain"
-RESPONSE=$(curl -s --cacert "$USER_CA" https://localhost:8445/test-full-chain)
+echo -e "${GREEN}TEST 1: Positive Case (Full TLS Chain)${NC}"
+echo -e "${BLUE}Executing:${NC} curl -s -w \"\n%{http_code}\" --cacert $USER_CA https://localhost:8445/test-full-chain"
+FULL_OUT=$(curl -s -w "\n%{http_code}" --cacert "$USER_CA" https://localhost:8445/test-full-chain)
+HTTP_CODE=$(echo "$FULL_OUT" | tail -n1)
+RESPONSE=$(echo "$FULL_OUT" | sed '$d')
 
-echo -e "\n${GREEN}Final Response:${NC} ${CYAN}$RESPONSE${NC}"
+echo -e "\n${YELLOW}HTTP Status Code:${NC} $HTTP_CODE"
+echo -e "${GREEN}Final Response:${NC} ${CYAN}$RESPONSE${NC}"
 
 echo -e "\n${MAGENTA}--- 3-TIER AUDIT TRAIL ---${NC}"
 echo -e "${YELLOW}[User Application]:${NC}"
@@ -97,9 +100,39 @@ grep "Hello from" server.log | tail -n 1 || echo "Request reached server control
 echo -e "${MAGENTA}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 
 # Check for success
-if [[ "$RESPONSE" == *"Hello from TLS secured server!"* ]]; then
+if [ "$HTTP_CODE" -eq 200 ] && [[ "$RESPONSE" == *"Hello from TLS secured server!"* ]]; then
     echo -e "${GREEN}✔ SUCCESS: Verified full flow: User -> User App -> Client Proxy -> Server${NC}"
 else
-    echo -e "${RED}✘ FAILURE: Chain broken.${NC}"
+    echo -e "${RED}✘ FAILURE: Unexpected Status ($HTTP_CODE) or Response.${NC}"
+    exit 1
+fi
+
+echo -e "\n${RED}TEST 2: Negative Case (No CA Certificate)${NC}"
+echo -e "${BLUE}Executing:${NC} curl -s -w \"%{http_code}\" https://localhost:8445/test-full-chain"
+CURL_OUT=$(curl -s -w "\n%{http_code}" https://localhost:8445/test-full-chain 2>&1)
+HTTP_CODE_NEG=$(echo "$CURL_OUT" | tail -n1)
+CURL_ERROR=$(echo "$CURL_OUT" | sed '$d')
+
+echo -e "${YELLOW}HTTP Status Code:${NC} $HTTP_CODE_NEG"
+if [[ "$CURL_OUT" == *"SSL certificate problem"* ]] || [[ "$CURL_OUT" == *"certificate verify failed"* ]] || [ "$HTTP_CODE_NEG" -eq 000 ]; then
+    echo -e "${GREEN}✔ Blocked correctly: ${NC}Handshake failed (Status 000)"
+else
+    echo -e "${RED}✘ FAILURE: Connection should have been blocked!${NC}"
+    echo -e "Debug Info: $CURL_OUT"
+    exit 1
+fi
+
+echo -e "\n${RED}TEST 3: Negative Case (Mismatch CA)${NC}"
+SERVER_CA="$(pwd)/tls-server/src/main/resources/server.crt"
+echo -e "${BLUE}Executing:${NC} curl -s -w \"%{http_code}\" --cacert $SERVER_CA https://localhost:8445/test-full-chain"
+CURL_OUT=$(curl -s -w "\n%{http_code}" --cacert "$SERVER_CA" https://localhost:8445/test-full-chain 2>&1)
+HTTP_CODE_NEG=$(echo "$CURL_OUT" | tail -n1)
+
+echo -e "${YELLOW}HTTP Status Code:${NC} $HTTP_CODE_NEG"
+if [[ "$CURL_OUT" == *"SSL certificate problem"* ]] || [[ "$CURL_OUT" == *"certificate verify failed"* ]] || [ "$HTTP_CODE_NEG" -eq 000 ]; then
+    echo -e "${GREEN}✔ Blocked correctly: ${NC}Handshake failed (Status 000)"
+else
+    echo -e "${RED}✘ FAILURE: Connection should have been blocked!${NC}"
+    echo -e "Debug Info: $CURL_OUT"
     exit 1
 fi
