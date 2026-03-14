@@ -40,6 +40,9 @@ public class TlsClientConfig {
                 }
 
                 SslContext sslContext = SslContextBuilder.forClient()
+                                .keyManager(
+                                                TlsClientConfig.class.getResourceAsStream("/client.crt"),
+                                                TlsClientConfig.class.getResourceAsStream("/client.key"))
                                 .trustManager(trustCertificate.getInputStream())
                                 .build();
 
